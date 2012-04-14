@@ -16,12 +16,16 @@ Namespace('brook').define(function(ns){
      * @memberOf brook
      * @description
      * 実行する前の次の処理をもつオブジェクトです。
-     * Promiseインスタンスはbind関数で結合する事が出来ます。連続した非同期/同期の処理をデータの流れとして抽象化して結合する事が出来ます。
-     * subscribe/forEach/runなどの処理を実行するまでは、結合した処理は実行される事はありません。
+     * Promiseインスタンスはbind関数で結合する事ができます。連続した非同期/同期の処理をデータの流れとして抽象化します。
+     * subscribe/forEach/runなどの処理を実行するまでは、結合した処理が実行される事はありません。
      * また、コンストラクタは公開されていません。brook.promiseがファクトリとなっています。
      */
-    var Promise = function(next){
-        this.next = next ||  function(next,val){ return next(val); };
+    var k       = function(next,val){ next(val); };
+    var lift    = function(f){ return ( f instanceof Promise ) ? f : new Promise( f ); };
+    var Promise = function(next,errorHandler){
+        this.next = next || k;
+        if (errorHandler)
+            this.setErrorHandler(errorHandler);
     };
     (function(proto){
     /**#@+
@@ -35,7 +39,7 @@ Namespace('brook').define(function(ns){
     proto.concat = function(after){
         var _before = this;
         var next    = function(n,val){
-            return _before.subscribe( after.ready(n),val);
+            _before.subscribe( after.ready(n),val);
         };
         return new Promise(next);
     };
@@ -45,10 +49,8 @@ Namespace('brook').define(function(ns){
      */
     proto.bind = function(){
         var r = this;
-        for( var i = 0,l = arguments.length;i<l;i++){
-            var s = arguments[i];
-            s = ( s instanceof Promise) ? s : promise( s );
-            r = r.concat( s );
+        for( var i = 0,l = arguments.length;i<l;i++ ){
+            r = r.concat( lift(arguments[i]) );
         }
         return r;
     };
@@ -59,7 +61,7 @@ Namespace('brook').define(function(ns){
     proto.ready = function(n){
         var promise = this;
         return function(val){
-            return promise.subscribe(n,val);
+            promise.subscribe(n,val);
         };
     };
     /**
@@ -73,8 +75,9 @@ Namespace('brook').define(function(ns){
      * @name subscribe
      * @param {Promise} promise
      */
+    var empty = function(){};
     proto.subscribe = function(next,val){
-        var next = next ? next : function(){};
+        var next = next || empty;
         if( !this.errorHandler )
             return this.next(next,val);
         
@@ -94,14 +97,14 @@ Namespace('brook').define(function(ns){
      * @name setErrorHandler
      * @param {Promise} promise
      */
-    proto.setErrorHandler = function(promise){
-        this.errorHandler = promise;
+    proto.setErrorHandler = function(f){
+        this.errorHandler = lift(f);
     };
     /**
      * @name onError
      */
     proto.onError = function(e){
-        (this.errorHandler||new Promise).subscribe(function(){},e);
+        (this.errorHandler||new Promise).run(e);
     };
     /**#@-*/
     })(Promise.prototype);
@@ -110,16 +113,18 @@ Namespace('brook').define(function(ns){
      * @function
      * @memberOf brook
      * @param {function} next
+     * @param {function} errorHandler
      * @return {Promise}
      * @description
      * プロミスを生成するファクトリメソッドです。nextは、さらに次の処理を第一引数に受け取り、第二引数に前回の処理の結果を受け取ります。
+     * errorHandlerはnextで例外が発生した場合に呼ばれるpromiseか関数を受け付けます。
      * 引数が無い場合は、データをそのまま次の処理に送るpromiseを生成します。
      * @example
      * var p = ns.promise(function(next,value){ next(value+1)});
      * @example
      * var p = ns.promise();
      */
-    var promise = function(next){return new Promise(next)};
+    var promise = function(next,errorHandler){return new Promise(next,errorHandler)};
     ns.provide({
         promise : promise,
         VERSION : VERSION
