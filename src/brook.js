@@ -39,11 +39,10 @@ Namespace('brook').define(function(ns){
      * @param {Promise} promise
      */
     proto.concat = function(after){
-        var _before = this;
-        var next    = function(n,val){
-            _before.subscribe( after.ready(n),val);
-        };
-        return new Promise(next);
+        var before = this;
+        return new Promise(function(n,val){
+            before.subscribe(after.ready(n),val);
+        });
     };
     /**
      * @name bind
@@ -106,7 +105,7 @@ Namespace('brook').define(function(ns){
      * @name onError
      */
     proto.onError = function(e){
-        (this.errorHandler||new Promise()).run(e);
+        (this.errorHandler||(new Promise())).run(e);
     };
     /**#@-*/
     })(Promise.prototype);
