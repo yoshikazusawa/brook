@@ -25,7 +25,7 @@ test('promise',function(){
     }).bind(ns.mapper(ns.lambda("$*$")));
     
     p.bind(p).subscribe(function(val){
-        equals( val,10000 ,'val');
+        equal( val,10000 ,'val');
     },10);
 
 });
@@ -33,13 +33,13 @@ test('promise',function(){
 test('ready',function(){
     expect(4);
     var p = ns.promise(function(n,val){
-        equals( val,4 ,'val');
+        equal( val,4 ,'val');
         n(val);
     }).bind(ns.mapper(ns.lambda("$*$")));
 
     var func = p.ready(function(val){
         ok(true,'pass');
-        equals( val,16 ,'val');
+        equal( val,16 ,'val');
     });
     func(4);
 
@@ -56,7 +56,7 @@ test('error',function(){
         ok(true,'error handle');
     })
     .ready(function(v) {
-        equals(1, v, 'success');
+        equal(1, v, 'success');
     });
     p(1);
     p(2);
@@ -66,10 +66,10 @@ test('through',function(){
     expect(2);
     var p = ns.mapper(ns.lambda('$*2'));
     ns.through(function(val) {
-        equals(val, 10);
+        equal(val, 10);
         return val * 3;
     }).bind(p).subscribe(function(val) {
-        equals( val,20 ,'val');
+        equal( val,20 ,'val');
     }, 10);
 });
 
@@ -78,12 +78,12 @@ test('debug',function(){
     var previousConsole = console;
     console = {
         log: function(msg, val) { 
-            equals(msg, 'debug:', 'sigil'); 
-            equals(val, 20, 'val'); 
+            equal(msg, 'debug:', 'sigil'); 
+            equal(val, 20, 'val'); 
         }
     };
     ns.debug().subscribe(function(val) {
-        equals(val,20,'val');
+        equal(val,20,'val');
     }, 20);
     console = previousConsole;
 });
@@ -134,7 +134,7 @@ test('cond',function(){with(ns){
 }});
 
 test('match',function(){with(ns){
-    expect(4);
+    expect(9);
     var p = promise().bind(
         match({
             10 : ns.promise(function(n,v){ equal(v,10);n(v)}),
@@ -145,13 +145,48 @@ test('match',function(){with(ns){
         })
     );
     scatter().bind(p).run([10,11,12]);
+
+    var dispatchTable = {
+        mode_should_be_foo : ns.promise(function(n,v){ equal(v.mode, 'foo'); n(v);}),
+        mode_should_be_bar : ns.promise(function(n,v){ equal(v.mode, 'bar'); }),
+        mode_should_be_baz : ns.promise(function(n,v){ equal(v.mode, 'baz'); }),
+    };
+    var before = promise(function(n,v){
+        var ret = {
+            mode : v,
+            value : 'before_value'
+        };
+        n(ret);
+    });
+    var matcher = function(v){
+        var ret;
+        switch (v.mode) {
+            case 'foo' :
+                ret = 'mode_should_be_foo';
+                break;
+            case 'bar' :
+                ret = 'mode_should_be_bar';
+                break;
+            case 'baz' :
+                ret = 'mode_should_be_baz';
+                break;
+        };
+        return ret;
+    };
+    var after = promise(function(n,v){
+        equal(v.mode, 'foo');
+        equal(v.value, 'before_value');
+    });
+    scatter().bind(
+        before.bind(match(dispatchTable, matcher), after)
+    ).run(['foo','bar','baz']);
 }});
 
 test('named channel',function(){
     expect(12);
     var test = ns.promise(function(n,v){
         ok(n);
-        equals( v.length , 3);
+        equal( v.length , 3);
     });
     
     ns.from(ns.channel('test-channel'))
@@ -172,7 +207,7 @@ test('channel',function(){
     var channel = ns.channel();
     var test = ns.promise(function(n,v){
         ok(n);
-        equals( v.length , 3);
+        equal( v.length , 3);
     });
     ns.from( channel ).bind( test ).subscribe();
 

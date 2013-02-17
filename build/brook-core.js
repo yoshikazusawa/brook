@@ -3,6 +3,8 @@
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace*/
+
 
 /**
 @name brook
@@ -77,7 +79,7 @@ Namespace('brook').define(function(ns){
      */
     var empty = function(){};
     proto.subscribe = function(next,val){
-        var next = next || empty;
+        next = next || empty;
         if( !this.errorHandler )
             return this.next(next,val);
         
@@ -104,7 +106,7 @@ Namespace('brook').define(function(ns){
      * @name onError
      */
     proto.onError = function(e){
-        (this.errorHandler||new Promise).run(e);
+        (this.errorHandler||new Promise()).run(e);
     };
     /**#@-*/
     })(Promise.prototype);
@@ -124,18 +126,20 @@ Namespace('brook').define(function(ns){
      * @example
      * var p = ns.promise();
      */
-    var promise = function(next,errorHandler){return new Promise(next,errorHandler)};
+    var promise = function(next,errorHandler){return new Promise(next,errorHandler);};
     ns.provide({
         promise : promise,
         VERSION : VERSION
     });
 });
 
+
 /**
 @fileOverview brook.util
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace setTimeout console setInterval clearInterval*/
 
 /**
 @name brook.util
@@ -183,7 +187,7 @@ Namespace('brook.util')
         var queue = [];
         return ns.promise(function(next,val){
             queue.push( val );
-            if( num++ % (by) ==0){
+            if( num++ % (by) === 0){
                 next(queue);
                 queue = [];
             }
@@ -191,31 +195,43 @@ Namespace('brook.util')
     };
     var now = Date.now ? function() { return Date.now(); }
                        : function() { return +new Date(); };
-    var _arrayWalk = function(list,func,limit) {
+    var _arrayWalk = function(list,func) {
+        for (var i = 0, l = list.length; i < l; i++) {
+            func(list[i]);
+        }
+    };
+    var _arrayWalkWithLimit = function (list, func, limit) {
         var index = 0, length = list.length;
         (function() {
             var startTime = now();
             while (length > index && limit > (now() - startTime))
                 func(list[index++]);
 
-            if (length > index) 
+            if (length > index)
                 setTimeout(arguments.callee, 10);
         })();
+    };
+    var _getArrayWalkWithLimit = function(limit) {
+        return function (list, func) {
+            _arrayWalkWithLimit(list, func, limit);
+        };
     };
     /**
      * @name scatter
      */
     var scatter = function(limit){
+        var func = limit ? _getArrayWalkWithLimit(limit) : _arrayWalk;
         return ns.promise(function(next,list){
-            _arrayWalk(list,next,(limit || 400));
+            func(list,next);
         });
     };
     /**
      * @name wait
      */
     var wait = function(msec){
-        var msecFunc = ( typeof msec == 'function' )
-            ? msec : function(){return msec};
+        var msecFunc
+            = ( typeof msec == 'function' ) ?
+                msec : function(){return msec;};
         return ns.promise(function(next,val){
             setTimeout(function(){
                 next(val);
@@ -227,12 +243,12 @@ Namespace('brook.util')
             if( f() ){
                 return next(val);
             }
-            setTimeout(function(){ p(next,val)},100);
+            setTimeout(function(){ p(next,val);},100);
         };
         return ns.promise(p);
     };
     var debug = function(sig){
-        var sig = sig ? sig : "debug";
+        sig = sig ? sig : "debug";
         return through(function(val) {
             console.log(sig + ":",val);
         });
@@ -246,9 +262,13 @@ Namespace('brook.util')
             },val);
         });
     };
-    var match = function(dispatchTable){
+    var match = function(dispatchTable, matcher){
         return ns.promise(function(next,val){
-            var promise = dispatchTable[val] || dispatchTable['__default__'] || ns.promise();
+            var promise;
+            if(matcher)
+                promise = dispatchTable[matcher(val)];
+            if(!promise)
+                promise = dispatchTable[val] || dispatchTable.__default__ || ns.promise();
             promise.subscribe(function(v){
                 next(v);
             },val);
@@ -274,7 +294,7 @@ Namespace('brook.util')
         return ns.promise(tryLock);
     };
     var from = function(value){
-        if( value.observe ){
+        if( value && value.observe ){
             return ns.promise(function(next,val){
                 value.observe(ns.promise(function(n,v){
                     next(v);
@@ -287,8 +307,9 @@ Namespace('brook.util')
     };
     var EMIT_INTERVAL_MAP = {};
     var emitInterval = function(msec, name){
-        var msecFunc = ( typeof msec == 'function' )
-            ? msec : function(){return msec};
+        var msecFunc
+            = ( typeof msec == 'function' ) ?
+                msec : function(){return msec;};
 
         return ns.promise(function(next,val){
             var id = setInterval(function(){
@@ -327,11 +348,13 @@ Namespace('brook.util')
 
 
 
+
 /**
 @fileOverview brook.lambda
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace*/
 
 /**
 @name brook.lambda
@@ -373,6 +396,7 @@ Namespace('brook.lambda')
         if( cache[expression] )
             return cache[expression];
         var parsed = parseExpression(expression);
+        /*jshint evil: true */
         var func = new Function( parsed.argumentNames,"return ("+ parsed.body + ");");
         cache[expression] = func;
         return func;
@@ -381,11 +405,13 @@ Namespace('brook.lambda')
         lambda : lambda
     });
 });
+
 /**
 @fileOverview brook.channel
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace sendChannel*/
 
 /**
 @name brook.channel
@@ -415,12 +441,12 @@ Namespace('brook.channel')
     /**#@+
      * @methodOf brook.channel._Channel.prototype
      */
-        var through = function(k){return k};
+        var through = function(k){return k;};
         /**
          * @name send
          */
         proto.send = function(func){
-            var func = ( func ) ? func : through;
+            func = ( func ) ? func : through;
             var _self = this;
             return ns.promise(function(next,val){
                 _self.sendMessage(func(val));
@@ -435,11 +461,14 @@ Namespace('brook.channel')
             var sendError = sendChannel('error');
 
             this.queue.push(msg);
-            while( this.queue.length ){
-                var message = this.queue.shift();
-                var runner  = ns.promise(function(next, promise) {
+            var makeRunner = function(message) {
+                return ns.promise(function(next, promise) {
                     promise.run(message);
                 });
+            };
+            while( this.queue.length ){
+                var message = this.queue.shift();
+                var runner  = makeRunner(message);
                 runner.setErrorHandler(sendError);
                 scatter.bind(runner).run(this.promises);
             }
@@ -495,11 +524,13 @@ Namespace('brook.channel')
 });
 
 
+
 /**
 @fileOverview brook/model.js
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace*/
 
 /**
 @name brook.model

@@ -3,6 +3,7 @@
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace setTimeout console setInterval clearInterval*/
 
 /**
 @name brook.util
@@ -50,7 +51,7 @@ Namespace('brook.util')
         var queue = [];
         return ns.promise(function(next,val){
             queue.push( val );
-            if( num++ % (by) ==0){
+            if( num++ % (by) === 0){
                 next(queue);
                 queue = [];
             }
@@ -58,31 +59,43 @@ Namespace('brook.util')
     };
     var now = Date.now ? function() { return Date.now(); }
                        : function() { return +new Date(); };
-    var _arrayWalk = function(list,func,limit) {
+    var _arrayWalk = function(list,func) {
+        for (var i = 0, l = list.length; i < l; i++) {
+            func(list[i]);
+        }
+    };
+    var _arrayWalkWithLimit = function (list, func, limit) {
         var index = 0, length = list.length;
         (function() {
             var startTime = now();
             while (length > index && limit > (now() - startTime))
                 func(list[index++]);
 
-            if (length > index) 
+            if (length > index)
                 setTimeout(arguments.callee, 10);
         })();
+    };
+    var _getArrayWalkWithLimit = function(limit) {
+        return function (list, func) {
+            _arrayWalkWithLimit(list, func, limit);
+        };
     };
     /**
      * @name scatter
      */
     var scatter = function(limit){
+        var func = limit ? _getArrayWalkWithLimit(limit) : _arrayWalk;
         return ns.promise(function(next,list){
-            _arrayWalk(list,next,(limit || 400));
+            func(list,next);
         });
     };
     /**
      * @name wait
      */
     var wait = function(msec){
-        var msecFunc = ( typeof msec == 'function' )
-            ? msec : function(){return msec};
+        var msecFunc
+            = ( typeof msec == 'function' ) ?
+                msec : function(){return msec;};
         return ns.promise(function(next,val){
             setTimeout(function(){
                 next(val);
@@ -94,12 +107,12 @@ Namespace('brook.util')
             if( f() ){
                 return next(val);
             }
-            setTimeout(function(){ p(next,val)},100);
+            setTimeout(function(){ p(next,val);},100);
         };
         return ns.promise(p);
     };
     var debug = function(sig){
-        var sig = sig ? sig : "debug";
+        sig = sig ? sig : "debug";
         return through(function(val) {
             console.log(sig + ":",val);
         });
@@ -113,9 +126,13 @@ Namespace('brook.util')
             },val);
         });
     };
-    var match = function(dispatchTable){
+    var match = function(dispatchTable, matcher){
         return ns.promise(function(next,val){
-            var promise = dispatchTable[val] || dispatchTable['__default__'] || ns.promise();
+            var promise;
+            if(matcher)
+                promise = dispatchTable[matcher(val)];
+            if(!promise)
+                promise = dispatchTable[val] || dispatchTable.__default__ || ns.promise();
             promise.subscribe(function(v){
                 next(v);
             },val);
@@ -141,7 +158,7 @@ Namespace('brook.util')
         return ns.promise(tryLock);
     };
     var from = function(value){
-        if( value.observe ){
+        if( value && value.observe ){
             return ns.promise(function(next,val){
                 value.observe(ns.promise(function(n,v){
                     next(v);
@@ -154,8 +171,9 @@ Namespace('brook.util')
     };
     var EMIT_INTERVAL_MAP = {};
     var emitInterval = function(msec, name){
-        var msecFunc = ( typeof msec == 'function' )
-            ? msec : function(){return msec};
+        var msecFunc
+            = ( typeof msec == 'function' ) ?
+                msec : function(){return msec;};
 
         return ns.promise(function(next,val){
             var id = setInterval(function(){

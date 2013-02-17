@@ -3,6 +3,8 @@
 @author daichi.hiroki<hirokidaichi@gmail.com>
 */
 
+/*global Namespace*/
+
 
 /**
 @name brook
@@ -77,7 +79,7 @@ Namespace('brook').define(function(ns){
      */
     var empty = function(){};
     proto.subscribe = function(next,val){
-        var next = next || empty;
+        next = next || empty;
         if( !this.errorHandler )
             return this.next(next,val);
         
@@ -104,7 +106,7 @@ Namespace('brook').define(function(ns){
      * @name onError
      */
     proto.onError = function(e){
-        (this.errorHandler||new Promise).run(e);
+        (this.errorHandler||new Promise()).run(e);
     };
     /**#@-*/
     })(Promise.prototype);
@@ -124,7 +126,7 @@ Namespace('brook').define(function(ns){
      * @example
      * var p = ns.promise();
      */
-    var promise = function(next,errorHandler){return new Promise(next,errorHandler)};
+    var promise = function(next,errorHandler){return new Promise(next,errorHandler);};
     ns.provide({
         promise : promise,
         VERSION : VERSION
