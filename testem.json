@@ -1,0 +1,14 @@
+{
+    "framework": "mocha",
+    "serve_files": [
+        "lib/namespace.js",
+        "build/brook-view-htmltemplate-core.js",
+        "node_modules/expect.js/expect.js",
+        "test/*.js"
+    ],
+    "src_files": [
+        "test/*.coffee"
+    ],
+    "before_tests": "coffee -c test/*.coffee",
+    "after_tests": "rm test/*.js"
+}
